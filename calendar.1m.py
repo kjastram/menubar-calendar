@@ -374,8 +374,11 @@ def header(text):
 
 
 def event_item(ev, label, show_account):
-    # Events not yet accepted get gray text.
-    print(f"{label} · {clean(ev['summary'])} | {bar(ev)}" + (f" color={GRAY}" if ev["tentative"] else ""))
+    # No `color=` here: SwiftBar drops the image on lines that set a text color.
+    # The href keeps the item enabled: SwiftBar 2.1's in-place menu updates can
+    # leave a submenu-only item disabled. Clicking it joins the call, or opens the event.
+    target = ev["join"] or ev["link"]
+    print(f"{label} · {clean(ev['summary'])} | {bar(ev)}" + (f" href={target}" if target else ""))
     where = clean(ev["calendar"])
     if show_account and ev.get("account") and ev["account"] != ev["calendar"]:
         where += f" ({ev['account']})"
