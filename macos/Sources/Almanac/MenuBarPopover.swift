@@ -61,8 +61,9 @@ struct MenuBarPopover: View {
         .padding(.horizontal, 4)
     }
 
+    /// Events left today: all-day ones plus timed ones that haven't ended.
     private var todayCount: Int {
-        menu.allDay(on: menu.now).count + menu.timed(on: menu.now).count
+        menu.allDay(on: menu.now).count + menu.timed(on: menu.now).filter { $0.end > menu.now }.count
     }
 
     private func setupNotice(_ problem: String) -> some View {
@@ -148,8 +149,7 @@ struct MenuBarPopover: View {
         if !ongoing.isEmpty {
             section("Now") {
                 ForEach(ongoing) { item in
-                    EventRow(item: item, label: "until \(MenuText.time(item.end))", model: model, dimmed: false,
-                             onOpen: { open(item) })
+                    EventRow(item: item, label: "until \(MenuText.time(item.end))", model: model, onOpen: { open(item) })
                 }
             }
         }
@@ -159,19 +159,20 @@ struct MenuBarPopover: View {
         }
 
         let todayAllDay = menu.allDay(on: now)
-        let todayTimed = menu.timed(on: now).filter { !nextIDs.contains($0.id) && !ongoingIDs.contains($0.id) }
+        // Finished events drop off; ongoing ones are under "Now" and the next one is in the card.
+        let todayTimed = menu.timed(on: now).filter {
+            $0.end > now && !nextIDs.contains($0.id) && !ongoingIDs.contains($0.id)
+        }
         section("Today") {
             ForEach(todayAllDay) { item in
-                EventRow(item: item, label: "All day", model: model, dimmed: false, onOpen: { open(item) })
+                EventRow(item: item, label: "All day", model: model, onOpen: { open(item) })
             }
             ForEach(todayTimed) { item in
-                EventRow(item: item, label: MenuText.time(item.start), model: model, dimmed: item.end <= now,
-                         onOpen: { open(item) })
+                EventRow(item: item, label: MenuText.time(item.start), model: model, onOpen: { open(item) })
             }
             if !menu.accounts.isEmpty && menu.activeAccounts.isEmpty {
                 emptyText("All accounts are hidden")
-            } else if todayAllDay.isEmpty
-                        && !todayTimed.contains(where: { $0.start > now })
+            } else if todayAllDay.isEmpty && todayTimed.isEmpty
                         && !next.contains(where: { Calendar.current.isDate($0.start, inSameDayAs: now) }) {
                 emptyText("No more events today")
             }
@@ -183,11 +184,10 @@ struct MenuBarPopover: View {
         if !tomorrowAllDay.isEmpty || !tomorrowTimed.isEmpty {
             section("Tomorrow") {
                 ForEach(tomorrowAllDay) { item in
-                    EventRow(item: item, label: "All day", model: model, dimmed: false, onOpen: { open(item) })
+                    EventRow(item: item, label: "All day", model: model, onOpen: { open(item) })
                 }
                 ForEach(tomorrowTimed) { item in
-                    EventRow(item: item, label: MenuText.time(item.start), model: model, dimmed: false,
-                             onOpen: { open(item) })
+                    EventRow(item: item, label: MenuText.time(item.start), model: model, onOpen: { open(item) })
                 }
             }
         }
@@ -351,7 +351,6 @@ private struct EventRow: View {
     let item: CalendarItem
     let label: String
     let model: AppModel
-    let dimmed: Bool
     let onOpen: () -> Void
 
     var body: some View {
@@ -380,7 +379,6 @@ private struct EventRow: View {
         .font(.system(size: 13))
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .opacity(dimmed ? 0.55 : 1)
         .modifier(HoverBackground())
         .help(tooltip)
         .contextMenu { EventContextMenu(item: item) }
